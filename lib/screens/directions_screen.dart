@@ -2,6 +2,7 @@
 // directions_screen.dart — UOG Campus Directions
 // ✅ ALL COORDINATES VERIFIED VIA GOOGLE MAPS BY USER
 // ✅ Step-by-step directions updated to match real layout
+// ✅ All directions converted to English
 // ============================================================
 
 import 'dart:math';
@@ -80,9 +81,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.computer_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Apne current location se campus ki north side ki taraf jaao",
-        "Al-Farabi Block aur Ibn-e-Sina Block ke darmiyan se guzro",
-        "Arfa Karim Block (B-Block) north-east mein hai — CS & IT ka building ✅",
+        "Head towards the north side of the campus from your current location",
+        "Pass through the area between Al-Farabi Block and Ibn-e-Sina Block",
+        "Arfa Karim Block (B-Block) is in the north-east — CS & IT building ✅",
       ]
     },
     {
@@ -91,9 +92,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.palette_rounded,
       "color": Color(0xFF6C5CE7),
       "steps": [
-        "Campus ki north side ki taraf jaao",
-        "Al-Jazari Block se north-east direction mein ~200m chalte jaao",
-        "Al-Farabi Block (A-Block) — Arts & Social Sciences, left side pe milega ✅",
+        "Head towards the north side of the campus",
+        "Walk ~200m in the north-east direction from Al-Jazari Block",
+        "Al-Farabi Block (A-Block) — Arts & Social Sciences, on the left side ✅",
       ]
     },
     {
@@ -102,8 +103,8 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.science_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "North campus ki taraf jaao",
-        "Al-Farabi Block ke bilkul paas, thoda east mein hai",
+        "Head towards the north campus",
+        "It is right next to Al-Farabi Block, slightly to the east",
         "Ibn-e-Sina Block — Science related department ✅",
       ]
     },
@@ -113,9 +114,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.apartment_rounded,
       "color": Color(0xFF6C5CE7),
       "steps": [
-        "Arfa Karim Block ki taraf jaao",
-        "Wahan se east direction mein ~100m chalte jaao",
-        "Sada Block campus ke north-east corner mein hai ✅",
+        "Head towards Arfa Karim Block",
+        "Walk ~100m in the east direction from there",
+        "Sada Block is located in the north-east corner of the campus ✅",
       ]
     },
     {
@@ -124,9 +125,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.directions_bus_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Campus ke north-west area ki taraf jaao",
-        "M Cafe ke south mein roughly ~200m",
-        "Transport Office — bus routes aur schedules yahan milenge ✅",
+        "Head towards the north-west area of the campus",
+        "Approximately ~200m south of M Cafe",
+        "Transport Office — bus routes and schedules are available here ✅",
       ]
     },
     {
@@ -135,9 +136,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.local_cafe_rounded,
       "color": Color(0xFFFF7675),
       "steps": [
-        "Campus ke north-west corner ki taraf jaao",
-        "Transport Office ke north mein thodi si walk",
-        "M Cafe — sabse upar north-west mein hai ✅",
+        "Head towards the north-west corner of the campus",
+        "A short walk north of the Transport Office",
+        "M Cafe — located at the very top north-west of the campus ✅",
       ]
     },
 
@@ -148,9 +149,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.engineering_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Campus ke middle area mein jaao",
-        "Main Cafeteria ke north mein ~200m chalte jaao",
-        "Al-Jazari Block — Engineering department, right side pe milega ✅",
+        "Head towards the middle area of the campus",
+        "Walk ~200m north of the Main Cafeteria",
+        "Al-Jazari Block — Engineering department, on the right side ✅",
       ]
     },
     {
@@ -159,8 +160,8 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.calculate_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "P Cafe ke north-west direction mein jaao",
-        "Omar Al-Khayam Block ke north-east mein hai",
+        "Head in the north-west direction from P Cafe",
+        "It is to the north-east of Omar Al-Khayam Block",
         "Al-Khawarizmi Block — Mathematics/Computing related ✅",
       ]
     },
@@ -170,9 +171,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.school_rounded,
       "color": Color(0xFF6C5CE7),
       "steps": [
-        "P Cafe ke paas jaao — woh nearby hai",
-        "Al-Khawarizmi Block ke south mein",
-        "Omar Al-Khayam Block yahan milega ✅",
+        "Head towards P Cafe — it is nearby",
+        "Located to the south of Al-Khawarizmi Block",
+        "Omar Al-Khayam Block is here ✅",
       ]
     },
     {
@@ -181,8 +182,8 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.biotech_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Main Cafeteria ke east mein jaao ~200m",
-        "Omar Al-Khayam Block ke south-west mein",
+        "Head ~200m east of the Main Cafeteria",
+        "Located to the south-west of Omar Al-Khayam Block",
         "Jabir Bin Khayan Block — Chemistry/Science related ✅",
       ]
     },
@@ -192,9 +193,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.restaurant_rounded,
       "color": Color(0xFFFF7675),
       "steps": [
-        "Campus ke middle area mein jaao",
-        "Al-Jazari Block ke south mein roughly ~100m",
-        "Main Cafeteria — sabse bada khane ka area, easily visible ✅",
+        "Head towards the middle area of the campus",
+        "Approximately ~100m south of Al-Jazari Block",
+        "Main Cafeteria — the largest food area on campus, easily visible ✅",
       ]
     },
     {
@@ -203,9 +204,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.coffee_rounded,
       "color": Color(0xFFFF7675),
       "steps": [
-        "Campus ke east side ki taraf jaao",
-        "Al-Khawarizmi Block ke south-east mein",
-        "P Cafe — east boundary ke paas milega ✅",
+        "Head towards the east side of the campus",
+        "Located to the south-east of Al-Khawarizmi Block",
+        "P Cafe — found near the east boundary of campus ✅",
       ]
     },
 
@@ -216,9 +217,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.mosque_rounded,
       "color": Color(0xFF27AE60),
       "steps": [
-        "Admin Block se north-east direction mein ~400m chalte jaao",
-        "Library ke north mein roughly",
-        "Islamic Studies Department — green signboard se pehchano ✅",
+        "Walk ~400m in the north-east direction from Admin Block",
+        "Located roughly to the north of the Library",
+        "Islamic Studies Department — identifiable by green signboard ✅",
       ]
     },
     {
@@ -227,9 +228,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.local_library_rounded,
       "color": Color(0xFF00B4D8),
       "steps": [
-        "Admin Block se north mein ~100m chalte jaao",
+        "Walk ~100m north from Admin Block",
         "Library building — Ibn-e-Khuldun / Quaid-e-Azam Library",
-        "Bari aur distinct building hai — easily visible ✅",
+        "It is a large and distinct building — easily visible ✅",
       ]
     },
     {
@@ -238,9 +239,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.business_rounded,
       "color": Color(0xFF6C5CE7),
       "steps": [
-        "Campus ka central south area — sabse main building",
-        "Library ke south mein ~100m",
-        "Admin Block — VC Office, Registrar, Finance sab yahan hai ✅",
+        "Central south area of the campus — the main building",
+        "Approximately ~100m south of the Library",
+        "Admin Block — VC Office, Registrar, and Finance are all located here ✅",
       ]
     },
     {
@@ -249,9 +250,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.mosque_rounded,
       "color": Color(0xFF27AE60),
       "steps": [
-        "Admin Block se west direction mein chalte jaao ~400m",
-        "UOG Mart se south-west mein",
-        "Mosque — minar se pehchana ja sakta hai ✅",
+        "Walk ~400m in the west direction from Admin Block",
+        "Located to the south-west of UOG Mart",
+        "Mosque — identifiable by its minaret ✅",
       ]
     },
     {
@@ -260,9 +261,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.shopping_bag_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Admin Block se west mein ~200m chalte jaao",
-        "Mosque ke north-east mein thoda",
-        "UOG Mart — grocery, stationery aur daily items milte hain ✅",
+        "Walk ~200m west from Admin Block",
+        "Slightly to the north-east of the Mosque",
+        "UOG Mart — grocery, stationery and daily items available here ✅",
       ]
     },
     {
@@ -271,9 +272,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.house_rounded,
       "color": Color(0xFF9B59B6),
       "steps": [
-        "Admin Block se west direction mein ~350m chalte jaao",
-        "Mosque ke east mein, UOG Mart ke south-west",
-        "Girls Main Hostel — secured area, walled boundary ✅",
+        "Walk ~350m in the west direction from Admin Block",
+        "To the east of the Mosque, south-west of UOG Mart",
+        "Girls Main Hostel — secured area with walled boundary ✅",
       ]
     },
     {
@@ -282,9 +283,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.supervised_user_circle_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Admin Block se south-west direction mein ~150m chalte jaao",
-        "Iqbal Hall ke north mein thoda",
-        "SSC Office — fee, enrollment, documents yahan process hote hain ✅",
+        "Walk ~150m in the south-west direction from Admin Block",
+        "Slightly to the north of Iqbal Hall",
+        "SSC Office — fee, enrollment, and document processing is done here ✅",
       ]
     },
     {
@@ -293,9 +294,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.theater_comedy_rounded,
       "color": Color(0xFF9B59B6),
       "steps": [
-        "SSC Office se south mein ~100m chalte jaao",
-        "Boys Hostel ke north mein hai",
-        "Iqbal Hall — events aur functions yahan hote hain ✅",
+        "Walk ~100m south from SSC Office",
+        "Located to the north of Boys Hostel",
+        "Iqbal Hall — events and functions are held here ✅",
       ]
     },
     {
@@ -304,8 +305,8 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.people_rounded,
       "color": Color(0xFF6C5CE7),
       "steps": [
-        "SSC Office ke south-east mein ~60m",
-        "Iqbal Hall ke north-east mein",
+        "Approximately ~60m to the south-east of SSC Office",
+        "To the north-east of Iqbal Hall",
         "IHRM — Hotel & Restaurant Management department ✅",
       ]
     },
@@ -315,9 +316,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.hotel_rounded,
       "color": Color(0xFF9B59B6),
       "steps": [
-        "Campus ke south-west corner ki taraf jaao",
-        "Iqbal Hall se south mein ~60m",
-        "Boys Hostel — campus ka sabse south-west corner ✅",
+        "Head towards the south-west corner of the campus",
+        "Approximately ~60m south of Iqbal Hall",
+        "Boys Hostel — located at the south-west corner of campus ✅",
       ]
     },
     {
@@ -326,9 +327,9 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.edit_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Library ke south-west mein thoda chalte jaao",
-        "Admin Block ke north mein roughly",
-        "Stationary Shop 1 — print, photocopy, books ✅",
+        "Walk slightly to the south-west of the Library",
+        "Roughly to the north of Admin Block",
+        "Stationary Shop 1 — printing, photocopy, and books available ✅",
       ]
     },
     {
@@ -337,8 +338,8 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       "icon": Icons.edit_note_rounded,
       "color": Color(0xFF1ABC9C),
       "steps": [
-        "Al-Jazari Block ke paas jaao",
-        "Middle campus area mein, north side",
+        "Head towards Al-Jazari Block",
+        "Located in the middle campus area, north side",
         "Stationary Shop 2 — near academic blocks ✅",
       ]
     },
