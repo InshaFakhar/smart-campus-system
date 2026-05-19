@@ -1,14 +1,15 @@
 // ============================================================
 // directions_screen.dart — UOG Campus Directions
-// ✅ ALL COORDINATES VERIFIED VIA GOOGLE MAPS BY USER
-// ✅ Step-by-step directions updated to match real layout
-// ✅ All directions converted to English
+// Real route saving via StatsService (SharedPreferences)
+// Save/unsave button on the route result card
+// All coordinates verified via Google Maps
 // ============================================================
 
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../main.dart';
+import '../services/stats_service.dart';
 import 'map_screen.dart';
 
 class DirectionsScreen extends StatefulWidget {
@@ -61,17 +62,19 @@ class _DirectionsScreenState extends State<DirectionsScreen>
   double? _userLng;
   String  _mode         = "Walking";
 
+  // Whether the currently shown route is saved
+  bool _isCurrentRouteSaved = false;
+  // Whether a save/unsave operation is in progress (prevents double taps)
+  bool _savingRoute = false;
+
   final List<Map<String, dynamic>> _modes = [
     {"label": "Walking", "icon": Icons.directions_walk_rounded, "color": Color(0xFF1ABC9C), "speed": 80.0},
     {"label": "Cycling", "icon": Icons.directions_bike_rounded, "color": Color(0xFF00B4D8), "speed": 250.0},
     {"label": "Driving", "icon": Icons.directions_car_rounded,  "color": Color(0xFF6C5CE7), "speed": 700.0},
   ];
 
-  // ✅ ALL COORDINATES VERIFIED — directions updated to match real campus layout
-  // Campus layout note:
-  //  - South area: Admin Block, Library, Mosque, Mart, SSC, Hostels, Iqbal Hall, IHRM
-  //  - North area: Arfa Karim, Al-Farabi, Ibn-e-Sina, Sada Block, P Cafe, Transport
-  //  - Middle: Al-Jazari, Al-Khawarizmi, Omar Al-Khayam, Jabir Bin Khayan, Main Cafe
+  // Campus buildings list with step-by-step directions
+  // Layout: South = Admin/Library/Mosque | Middle = Al-Jazari/Cafeteria | North = Arfa Karim/Al-Farabi
   final List<Map<String, dynamic>> _buildings = [
 
     // ── NORTH AREA ─────────────────────────────────────
@@ -349,15 +352,19 @@ class _DirectionsScreenState extends State<DirectionsScreen>
   void initState() {
     super.initState();
     themeProvider.addListener(_onThemeChange);
+
     _animController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 700));
     _fadeAnim  = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
     _animController.forward();
+
+    // Pre-select building if opened from the buildings screen
     if (widget.destinationName != null) {
       _selectedBuilding = widget.destinationName;
     }
+
     _getLocation();
   }
 
@@ -370,6 +377,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
 
   void _onThemeChange() { if (mounted) setState(() {}); }
 
+  // Gets the user's real GPS location; falls back to Admin Block default
   Future<void> _getLocation() async {
     try {
       LocationPermission perm = await Geolocator.checkPermission();
@@ -399,6 +407,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
     }
   }
 
+  // Haversine formula for straight-line distance between two GPS points
   double _haversine(double lat1, double lng1, double lat2, double lng2) {
     const R = 6371000.0;
     final dLat = (lat2 - lat1) * pi / 180;
@@ -409,7 +418,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
     return R * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
-  // ✅ Road distance approx = straight line × 1.3 (campus winding paths factor)
+  // Multiply straight-line by 1.3 to approximate real walking path length
   double _distanceTo(Map<String, dynamic> dest) {
     final straight = _haversine(
       _userLat ?? 32.63784018144842,
@@ -417,7 +426,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
       dest['lat'] as double,
       dest['lng'] as double,
     );
-    return straight * 1.3; // campus path correction factor
+    return straight * 1.3;
   }
 
   String _formatDist(double m) {
@@ -447,6 +456,69 @@ class _DirectionsScreenState extends State<DirectionsScreen>
     } catch (_) {
       return null;
     }
+  }
+
+  // Checks SharedPreferences to see if the current route is already saved
+  Future<void> _checkIfRouteSaved() async {
+    if (_selectedBuilding == null) return;
+    final saved = await StatsService.instance.isRouteSaved(_selectedBuilding!, _mode);
+    if (mounted) setState(() => _isCurrentRouteSaved = saved);
+  }
+
+  // Saves or unsaves the current route in SharedPreferences
+  Future<void> _toggleSaveRoute() async {
+    if (_selectedBuilding == null || _savingRoute) return;
+    setState(() => _savingRoute = true);
+
+    final dest = _dest;
+
+    if (_isCurrentRouteSaved) {
+      // Remove from saved routes
+      await StatsService.instance.removeSavedRoute(_selectedBuilding!, _mode);
+      if (mounted) {
+        setState(() {
+          _isCurrentRouteSaved = false;
+          _savingRoute = false;
+        });
+        _showSnack("Route removed from saved routes", isError: false, isWarning: true);
+      }
+    } else {
+      // Save the route
+      final success = await StatsService.instance.saveRoute(
+        buildingName: _selectedBuilding!,
+        mode:         _mode,
+        destLat:      dest?['lat'] as double?,
+        destLng:      dest?['lng'] as double?,
+      );
+      if (mounted) {
+        setState(() {
+          _isCurrentRouteSaved = success;
+          _savingRoute = false;
+        });
+        if (success) {
+          _showSnack("Route saved successfully! ✅");
+        } else {
+          _showSnack("Route already saved", isError: false, isWarning: true);
+        }
+      }
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = false, bool isWarning = false}) {
+    Color bg;
+    if (isError) {
+      bg = const Color(0xFF8B1A1A);
+    } else if (isWarning) {
+      bg = const Color(0xFF7A5C1D);
+    } else {
+      bg = const Color(0xFF1D7A55);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: bg,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   @override
@@ -483,7 +555,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
-                      // ── HEADER ───────────────────────────
+                      // ── HEADER ─────────────────────────
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                         child: Row(children: [
@@ -516,7 +588,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
 
                       const SizedBox(height: 20),
 
-                      // ── FROM / TO CARD ──────────────────
+                      // ── FROM / TO CARD ─────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Container(
@@ -530,6 +602,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                                 blurRadius: 28, spreadRadius: -4, offset: const Offset(0, 8))],
                           ),
                           child: Column(children: [
+                            // FROM row
                             Row(children: [
                               Container(
                                 width: 42, height: 42,
@@ -579,6 +652,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                               )),
                             ]),
 
+                            // Dashed separator line between FROM and TO
                             Padding(
                               padding: const EdgeInsets.only(left: 20, top: 6, bottom: 6),
                               child: Column(
@@ -593,6 +667,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                               ),
                             ),
 
+                            // TO row
                             Row(children: [
                               Container(
                                 width: 42, height: 42,
@@ -637,7 +712,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
 
                       const SizedBox(height: 16),
 
-                      // ── TRANSPORT MODE ──────────────────
+                      // ── TRANSPORT MODE SELECTOR ─────────
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Row(children: _modes.map((m) {
@@ -645,10 +720,14 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                           final col  = m['color'] as Color;
                           final last = m == _modes.last;
                           return Expanded(child: GestureDetector(
-                            onTap: () => setState(() {
-                              _mode       = m['label'];
-                              _routeShown = false;
-                            }),
+                            onTap: () async {
+                              setState(() {
+                                _mode       = m['label'] as String;
+                                _routeShown = false;
+                              });
+                              // Re-check saved status for the new mode
+                              await _checkIfRouteSaved();
+                            },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               margin: EdgeInsets.only(right: last ? 0 : 10),
@@ -661,8 +740,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                                   width: sel ? 1.5 : 1,
                                 ),
                                 boxShadow: sel
-                                    ? [BoxShadow(
-                                    color: col.withOpacity(0.22),
+                                    ? [BoxShadow(color: col.withOpacity(0.22),
                                     blurRadius: 12, spreadRadius: -3)]
                                     : null,
                               ),
@@ -670,12 +748,12 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                                 Icon(m['icon'] as IconData, size: 22,
                                     color: sel ? col : _subCol),
                                 const SizedBox(height: 5),
-                                Text(m['label'],
+                                Text(m['label'] as String,
                                     style: TextStyle(fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                         color: sel ? col : _subCol)),
                                 if (dest != null && !_locLoading)
-                                  Text(_estimateTime(dist!),
+                                  Text(_estimateTime2(dist!, m['speed'] as double),
                                       style: TextStyle(fontSize: 10,
                                           color: sel
                                               ? col.withOpacity(0.7)
@@ -709,40 +787,38 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                             final sel = _selectedBuilding == b['name'];
                             final col = b['color'] as Color;
                             return GestureDetector(
-                              onTap: () => setState(() {
-                                _selectedBuilding = b['name'];
-                                _routeShown = false;
-                              }),
+                              onTap: () async {
+                                setState(() {
+                                  _selectedBuilding = b['name'] as String;
+                                  _routeShown = false;
+                                });
+                                // Check if the newly selected building+mode route is saved
+                                await _checkIfRouteSaved();
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 10),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: sel
-                                      ? col.withOpacity(0.18) : _fieldBgT,
+                                  color: sel ? col.withOpacity(0.18) : _fieldBgT,
                                   borderRadius: BorderRadius.circular(22),
                                   border: Border.all(
-                                    color: sel
-                                        ? col.withOpacity(0.55) : _borderC,
+                                    color: sel ? col.withOpacity(0.55) : _borderC,
                                     width: sel ? 1.5 : 1,
                                   ),
                                   boxShadow: sel
-                                      ? [BoxShadow(
-                                      color: col.withOpacity(0.22),
+                                      ? [BoxShadow(color: col.withOpacity(0.22),
                                       blurRadius: 10, spreadRadius: -2)]
                                       : null,
                                 ),
-                                child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(b['icon'] as IconData, size: 14,
-                                          color: sel ? col : _subCol),
-                                      const SizedBox(width: 6),
-                                      Text(b['name'],
-                                          style: TextStyle(fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: sel ? col : _subCol)),
-                                    ]),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(b['icon'] as IconData, size: 14,
+                                      color: sel ? col : _subCol),
+                                  const SizedBox(width: 6),
+                                  Text(b['name'] as String,
+                                      style: TextStyle(fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: sel ? col : _subCol)),
+                                ]),
                               ),
                             );
                           },
@@ -771,7 +847,11 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                             ),
                             onPressed: _selectedBuilding == null
                                 ? null
-                                : () => setState(() => _routeShown = true),
+                                : () async {
+                              setState(() => _routeShown = true);
+                              // Check saved status when directions are first shown
+                              await _checkIfRouteSaved();
+                            },
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -794,7 +874,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                         ),
                       ),
 
-                      // ── ROUTE RESULT ────────────────────
+                      // ── ROUTE RESULT CARD ───────────────
                       if (_routeShown && dest != null) ...[
                         const SizedBox(height: 22),
 
@@ -813,61 +893,113 @@ class _DirectionsScreenState extends State<DirectionsScreen>
                                   color: _accent.withOpacity(0.42),
                                   blurRadius: 22, offset: const Offset(0, 8))],
                             ),
-                            child: Row(children: [
-                              Expanded(child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_selectedBuilding!,
-                                      style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white)),
-                                  const SizedBox(height: 8),
-                                  Row(children: [
-                                    const Icon(Icons.straighten_rounded,
-                                        size: 14, color: Colors.white70),
-                                    const SizedBox(width: 5),
-                                    Text(_formatDist(dist!),
+                            child: Column(children: [
+                              Row(children: [
+                                Expanded(child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_selectedBuilding!,
+                                        style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white)),
+                                    const SizedBox(height: 8),
+                                    Row(children: [
+                                      const Icon(Icons.straighten_rounded,
+                                          size: 14, color: Colors.white70),
+                                      const SizedBox(width: 5),
+                                      Text(_formatDist(dist!),
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700)),
+                                      const SizedBox(width: 14),
+                                      Icon(mData['icon'] as IconData,
+                                          size: 14, color: Colors.white70),
+                                      const SizedBox(width: 5),
+                                      Text(_estimateTime(dist),
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.white70,
+                                              fontWeight: FontWeight.w600)),
+                                    ]),
+                                  ],
+                                )),
+                                // Map button
+                                GestureDetector(
+                                  onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) => MapScreen(
+                                            focusLat:  dest['lat'] as double,
+                                            focusLng:  dest['lng'] as double,
+                                            focusName: dest['name'] as String,
+                                          ))),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.18),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: Colors.white.withOpacity(0.3), width: 1),
+                                    ),
+                                    child: const Text("Map →",
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w800)),
+                                  ),
+                                ),
+                              ]),
+
+                              const SizedBox(height: 14),
+
+                              // Save / Unsave Route button — persists to SharedPreferences
+                              GestureDetector(
+                                onTap: _savingRoute ? null : _toggleSaveRoute,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 250),
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(vertical: 11),
+                                  decoration: BoxDecoration(
+                                    color: _isCurrentRouteSaved
+                                        ? Colors.white.withOpacity(0.22)
+                                        : Colors.white.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(_isCurrentRouteSaved ? 0.5 : 0.25),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: _savingRoute
+                                      ? const Center(child: SizedBox(
+                                    width: 16, height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  ))
+                                      : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        _isCurrentRouteSaved
+                                            ? Icons.bookmark_rounded
+                                            : Icons.bookmark_add_outlined,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _isCurrentRouteSaved
+                                            ? "Route Saved ✓ — Tap to remove"
+                                            : "Save This Route",
                                         style: const TextStyle(
                                             fontSize: 13,
                                             color: Colors.white,
-                                            fontWeight: FontWeight.w700)),
-                                    const SizedBox(width: 14),
-                                    Icon(mData['icon'] as IconData,
-                                        size: 14, color: Colors.white70),
-                                    const SizedBox(width: 5),
-                                    Text(_estimateTime(dist),
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.white70,
-                                            fontWeight: FontWeight.w600)),
-                                  ]),
-                                ],
-                              )),
-                              GestureDetector(
-                                onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => MapScreen(
-                                          focusLat:  dest['lat'],
-                                          focusLng:  dest['lng'],
-                                          focusName: dest['name'],
-                                        ))),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.18),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                        color: Colors.white.withOpacity(0.3),
-                                        width: 1),
+                                            fontWeight: FontWeight.w700),
+                                      ),
+                                    ],
                                   ),
-                                  child: const Text("Map →",
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800)),
                                 ),
                               ),
                             ]),
@@ -876,6 +1008,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
 
                         const SizedBox(height: 20),
 
+                        // ── STEP-BY-STEP DIRECTIONS ───────
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Text("STEP-BY-STEP DIRECTIONS",
@@ -918,6 +1051,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
 
                         const SizedBox(height: 20),
 
+                        // ── TRAVEL TIME SUMMARY ───────────
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Container(

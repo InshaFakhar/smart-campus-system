@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'login_screen.dart';
 import '../main.dart';
+import '../services/notification_service.dart';
+import '../services/stats_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,13 +19,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const _accentLt = Color(0xFFAB9FF8);
 
   File? _profileImage;
-  bool  _notificationsEnabled    = true;
-  bool  _campusUpdates           = true;
-  bool  _scheduleReminders       = true;
-  bool  _mapAlerts               = false;
-  String _selectedLanguage       = "English";
 
-  // Language strings — English / Urdu
+  // ✅ Real stats — SharedPreferences se load honge
+  int _buildingsVisited = 0;
+  int _savedRoutes      = 0;
+  int _daysActive       = 0;
+  bool _statsLoaded     = false;
+
+  // ✅ Notification booleans — SharedPreferences se load honge
+  bool _notificationsEnabled  = true;
+  bool _campusUpdates         = true;
+  bool _scheduleReminders     = true;
+  bool _mapAlerts             = false;
+  bool _prefsLoaded           = false;   // loading guard
+
+  String _selectedLanguage = "English";
+
   Map<String, String> get _t => _selectedLanguage == "Urdu" ? {
     "profile":          "پروفائل",
     "student":          "طالب علم",
@@ -74,6 +85,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     themeProvider.addListener(_onThemeChange);
+    _loadPrefs();
+    _loadStats();  // ✅ Real stats load karo
   }
 
   @override
@@ -83,6 +96,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onThemeChange() { if (mounted) setState(() {}); }
+
+  // ✅ Load real stats from SharedPreferences
+  Future<void> _loadStats() async {
+    final stats = await StatsService.instance.loadStats();
+    if (mounted) {
+      setState(() {
+        _buildingsVisited = stats['buildings'] ?? 0;
+        _savedRoutes      = stats['routes']    ?? 0;
+        _daysActive       = stats['days']      ?? 1;
+        _statsLoaded      = true;
+      });
+    }
+  }
+
+  // ✅ Load saved notification preferences
+  Future<void> _loadPrefs() async {
+    final prefs = await NotificationService.instance.loadPreferences();
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = prefs['all']       ?? true;
+        _campusUpdates        = prefs['campus']    ?? true;
+        _scheduleReminders    = prefs['schedule']  ?? true;
+        _mapAlerts            = prefs['mapAlerts'] ?? false;
+        _prefsLoaded          = true;
+      });
+    }
+  }
 
   bool  get _isDark      => themeProvider.isDark;
   Color get _cardBg      => _isDark ? const Color(0xFF1C1836) : Colors.white;
@@ -156,24 +196,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Edit Profile ──────────────────────────────────────────
   void _showEditProfile() {
-    final user    = FirebaseAuth.instance.currentUser;
-    final nameCtrl  = TextEditingController(text: user?.displayName ?? "");
+    final user     = FirebaseAuth.instance.currentUser;
+    final nameCtrl = TextEditingController(text: user?.displayName ?? "");
     final phoneFocus = FocusNode();
     final nameFocus  = FocusNode();
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // ✅ keyboard ke saath scroll hoga
+      isScrollControlled: true,
       backgroundColor: _cardBg,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Padding(
-        // ✅ viewInsets.bottom — keyboard height automatically handle
-        padding: EdgeInsets.only(
-          left: 24, right: 24, top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
-        ),
-        child: SingleChildScrollView( // ✅ scroll bhi hoga
+        padding: EdgeInsets.only(left: 24, right: 24, top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
+        child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             _dragHandle(),
             const SizedBox(height: 16),
@@ -182,8 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _sheetLabel("Display Name"),
             const SizedBox(height: 8),
             TextField(
-              controller: nameCtrl,
-              focusNode: nameFocus,
+              controller: nameCtrl, focusNode: nameFocus,
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => FocusScope.of(ctx).requestFocus(phoneFocus),
               style: TextStyle(color: _textColor, fontSize: 14),
@@ -194,11 +230,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: _fieldBg,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _enabledBdr),
-              ),
+              decoration: BoxDecoration(color: _fieldBg, borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _enabledBdr)),
               child: Row(children: [
                 Icon(Icons.alternate_email_rounded, size: 19, color: _iconColor),
                 const SizedBox(width: 12),
@@ -209,8 +242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _sheetLabel("Phone Number"),
             const SizedBox(height: 8),
             TextField(
-              focusNode: phoneFocus,
-              keyboardType: TextInputType.phone,
+              focusNode: phoneFocus, keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.done,
               style: TextStyle(color: _textColor, fontSize: 14),
               decoration: _sheetDeco(hint: "+92 300 0000000", icon: Icons.phone_outlined),
@@ -219,19 +251,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(
               width: double.infinity, height: 52,
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _accent, foregroundColor: Colors.white,
-                  elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: _accent, foregroundColor: Colors.white,
+                    elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 onPressed: () async {
                   if (nameCtrl.text.trim().isNotEmpty) {
                     await user?.updateDisplayName(nameCtrl.text.trim());
                   }
-                  if (mounted) {
-                    Navigator.pop(ctx);
-                    setState(() {});
-                    _snack("Profile updated successfully! ✅");
-                  }
+                  if (mounted) { Navigator.pop(ctx); setState(() {}); _snack("Profile updated successfully! ✅"); }
                 },
                 child: const Text("Save Changes", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
               ),
@@ -251,52 +277,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // ✅ keyboard handle
+      isScrollControlled: true,
       backgroundColor: _cardBg,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => Padding(
-          padding: EdgeInsets.only(
-            left: 24, right: 24, top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
-          ),
+          padding: EdgeInsets.only(left: 24, right: 24, top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 32),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               _dragHandle(),
               const SizedBox(height: 16),
               Text("Change Password", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _textColor)),
               const SizedBox(height: 4),
-              Text("Enter your current password to confirm identity",
-                  style: TextStyle(fontSize: 12, color: _subColor)),
+              Text("Enter your current password to confirm identity", style: TextStyle(fontSize: 12, color: _subColor)),
               const SizedBox(height: 20),
-
               _sheetLabel("Current Password"),
               const SizedBox(height: 8),
               _pwField(ctrl: currentCtrl, focus: f1, nextFocus: f2, setS: setS,
                   hint: "Your current password", icon: Icons.lock_outline_rounded),
-
               const SizedBox(height: 14),
               _sheetLabel("New Password"),
               const SizedBox(height: 8),
               _pwField(ctrl: newCtrl, focus: f2, nextFocus: f3, setS: setS,
                   hint: "Min 8 chars, 1 uppercase, 1 symbol", icon: Icons.lock_reset_rounded),
-
               const SizedBox(height: 14),
               _sheetLabel("Confirm New Password"),
               const SizedBox(height: 8),
               _pwField(ctrl: confirmCtrl, focus: f3, setS: setS,
-                  hint: "Re-enter new password", icon: Icons.check_circle_outline_rounded,
-                  isDone: true),
-
+                  hint: "Re-enter new password", icon: Icons.check_circle_outline_rounded, isDone: true),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity, height: 52,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accent, foregroundColor: Colors.white,
-                    elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: _accent, foregroundColor: Colors.white,
+                      elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                   onPressed: () async {
                     if (newCtrl.text != confirmCtrl.text) { _snack("Passwords do not match", isError: true); return; }
                     if (newCtrl.text.length < 8) { _snack("Password too short (min 8 chars)", isError: true); return; }
@@ -321,36 +337,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _pwField({
-    required TextEditingController ctrl,
-    required FocusNode focus,
-    FocusNode? nextFocus,
-    required StateSetter setS,
-    required String hint,
-    required IconData icon,
-    bool isDone = false,
-  }) {
+  Widget _pwField({required TextEditingController ctrl, required FocusNode focus,
+    FocusNode? nextFocus, required StateSetter setS, required String hint,
+    required IconData icon, bool isDone = false}) {
     bool hidden = true;
     return StatefulBuilder(builder: (_, setLocal) => TextField(
-      controller: ctrl,
-      focusNode: focus,
-      obscureText: hidden,
+      controller: ctrl, focusNode: focus, obscureText: hidden,
       textInputAction: isDone ? TextInputAction.done : TextInputAction.next,
       onSubmitted: nextFocus != null ? (_) => FocusScope.of(context).requestFocus(nextFocus) : null,
       style: TextStyle(color: _textColor, fontSize: 14),
-      decoration: _sheetDeco(
-        hint: hint,
-        icon: icon,
-        suffix: IconButton(
-          icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-              size: 19, color: _iconColor),
-          onPressed: () => setLocal(() => hidden = !hidden),
-        ),
-      ),
+      decoration: _sheetDeco(hint: hint, icon: icon,
+          suffix: IconButton(
+            icon: Icon(hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                size: 19, color: _iconColor),
+            onPressed: () => setLocal(() => hidden = !hidden),
+          )),
     ));
   }
 
-  // ── Notifications ─────────────────────────────────────────
+  // ✅ WORKING Notifications Bottom Sheet — FCM topics se connected
   void _showNotifications() {
     showModalBottomSheet(
       context: context,
@@ -360,50 +365,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setS) => Padding(
-          padding: EdgeInsets.only(
-            left: 24, right: 24, top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
+          padding: EdgeInsets.only(left: 24, right: 24, top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             _dragHandle(),
             const SizedBox(height: 16),
             Row(children: [
               Text("Notifications", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _textColor)),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _notificationsEnabled
-                      ? const Color(0xFF1D7A55).withOpacity(0.15)
-                      : const Color(0xFFE24B4A).withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: _notificationsEnabled
-                        ? const Color(0xFF2ECC71).withOpacity(0.4)
-                        : const Color(0xFFE24B4A).withOpacity(0.35),
-                  ),
-                ),
-                child: Text(
-                  _notificationsEnabled ? "ON" : "OFF",
-                  style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700,
-                    color: _notificationsEnabled ? const Color(0xFF2ECC71) : const Color(0xFFE24B4A),
-                  ),
-                ),
-              ),
+              _badge(_notificationsEnabled ? "ON" : "OFF", _notificationsEnabled),
             ]),
             const SizedBox(height: 6),
             Text("Control which notifications you receive from UOG Smart Campus",
                 style: TextStyle(fontSize: 12, color: _subColor)),
             const SizedBox(height: 20),
-            _notifRow("Push Notifications", "All alerts & announcements", _notificationsEnabled,
-                    (v) => setS(() { setState(() => _notificationsEnabled = v); })),
-            _notifRow("Campus Updates", "UOG news & events", _campusUpdates,
-                    (v) => setS(() { setState(() => _campusUpdates = v); })),
-            _notifRow("Schedule Reminders", "Class & exam reminders", _scheduleReminders,
-                    (v) => setS(() { setState(() => _scheduleReminders = v); })),
-            _notifRow("Map Alerts", "Building & route updates", _mapAlerts,
-                    (v) => setS(() { setState(() => _mapAlerts = v); })),
+
+            // ✅ All Notifications toggle — disables rest if OFF
+            _notifRow(
+              title: "Push Notifications",
+              sub: "All alerts & announcements",
+              value: _notificationsEnabled,
+              onChange: (v) async {
+                setS(() => _notificationsEnabled = v);
+                setState(() => _notificationsEnabled = v);
+                // ✅ FCM — subscribe/unsubscribe ALL topics
+                await NotificationService.instance.setAllNotifications(v);
+              },
+            ),
+
+            // ✅ Campus Updates toggle
+            _notifRow(
+              title: "Campus Updates",
+              sub: "UOG news & events",
+              value: _campusUpdates && _notificationsEnabled,
+              enabled: _notificationsEnabled,
+              onChange: (v) async {
+                setS(() => _campusUpdates = v);
+                setState(() => _campusUpdates = v);
+                // ✅ FCM — campus_updates topic
+                await NotificationService.instance.setCampusUpdates(v);
+              },
+            ),
+
+            // ✅ Schedule Reminders toggle
+            _notifRow(
+              title: "Schedule Reminders",
+              sub: "Class & exam reminders",
+              value: _scheduleReminders && _notificationsEnabled,
+              enabled: _notificationsEnabled,
+              onChange: (v) async {
+                setS(() => _scheduleReminders = v);
+                setState(() => _scheduleReminders = v);
+                // ✅ FCM — schedule_reminders topic
+                await NotificationService.instance.setScheduleReminders(v);
+              },
+            ),
+
+            // ✅ Map Alerts toggle
+            _notifRow(
+              title: "Map Alerts",
+              sub: "Building & route updates",
+              value: _mapAlerts && _notificationsEnabled,
+              enabled: _notificationsEnabled,
+              onChange: (v) async {
+                setS(() => _mapAlerts = v);
+                setState(() => _mapAlerts = v);
+                // ✅ FCM — map_alerts topic
+                await NotificationService.instance.setMapAlerts(v);
+              },
+            ),
+
+            const SizedBox(height: 8),
+
+            // Info note
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _accent.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _accent.withOpacity(0.20), width: 1),
+              ),
+              child: Row(children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFFAB9FF8), size: 15),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  "Preferences save automatically. Changes take effect immediately.",
+                  style: TextStyle(fontSize: 11, color: _subColor),
+                )),
+              ]),
+            ),
             const SizedBox(height: 8),
           ]),
         ),
@@ -411,21 +461,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _notifRow(String title, String sub, bool value, ValueChanged<bool> onChange) =>
+  Widget _notifRow(
+      {required String title, required String sub, required bool value,
+        required ValueChanged<bool> onChange, bool enabled = true}) =>
       Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: _fieldBg,
+          color: enabled ? _fieldBg : _fieldBg.withOpacity(0.5),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _borderCol, width: 1.5),
         ),
         child: Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textColor)),
-            Text(sub, style: TextStyle(fontSize: 11, color: _subColor)),
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                color: enabled ? _textColor : _textColor.withOpacity(0.4))),
+            Text(sub, style: TextStyle(fontSize: 11,
+                color: enabled ? _subColor : _subColor.withOpacity(0.4))),
           ])),
-          Switch.adaptive(value: value, onChanged: onChange, activeColor: _accent),
+          Switch.adaptive(
+            value: value,
+            onChanged: enabled ? onChange : null,
+            activeColor: _accent,
+          ),
         ]),
       );
 
@@ -440,8 +498,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: _cardBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -456,25 +513,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ...locs.map((loc) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _fieldBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _borderCol, width: 1.5),
-            ),
+            decoration: BoxDecoration(color: _fieldBg, borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _borderCol, width: 1.5)),
             child: Row(children: [
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(
-                  color: _accent.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _accent.withOpacity(0.30), width: 1),
-                ),
-                child: Icon(loc["icon"] as IconData, color: _accentLt, size: 20),
-              ),
+              Container(width: 42, height: 42,
+                  decoration: BoxDecoration(color: _accent.withOpacity(0.12), borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _accent.withOpacity(0.30), width: 1)),
+                  child: Icon(loc["icon"] as IconData, color: _accentLt, size: 20)),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(loc["name"] as String,
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textColor)),
+                Text(loc["name"] as String, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textColor)),
                 Text(loc["sub"] as String, style: TextStyle(fontSize: 11, color: _subColor)),
               ])),
               Icon(Icons.bookmark_rounded, color: _accent.withOpacity(0.7), size: 20),
@@ -491,8 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: _cardBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => StatefulBuilder(builder: (ctx, setS) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -503,31 +550,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Spacer(),
             GestureDetector(
               onTap: () => setS(() => history.clear()),
-              child: Text("Clear All",
-                  style: TextStyle(fontSize: 13, color: const Color(0xFFE24B4A).withOpacity(0.8), fontWeight: FontWeight.w700)),
+              child: Text("Clear All", style: TextStyle(fontSize: 13,
+                  color: const Color(0xFFE24B4A).withOpacity(0.8), fontWeight: FontWeight.w700)),
             ),
           ]),
           const SizedBox(height: 16),
           history.isEmpty
-              ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20),
+              ? Padding(padding: const EdgeInsets.symmetric(vertical: 20),
               child: Text("No search history yet", style: TextStyle(color: _subColor, fontSize: 14)))
-              : Wrap(
-            spacing: 8, runSpacing: 8,
-            children: history.map((h) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: _accent.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _accent.withOpacity(0.25), width: 1),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.history_rounded, size: 13, color: _accentLt.withOpacity(0.7)),
-                const SizedBox(width: 6),
-                Text(h, style: TextStyle(fontSize: 13, color: _accentLt, fontWeight: FontWeight.w600)),
-              ]),
-            )).toList(),
-          ),
+              : Wrap(spacing: 8, runSpacing: 8, children: history.map((h) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(color: _accent.withOpacity(0.10), borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _accent.withOpacity(0.25), width: 1)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.history_rounded, size: 13, color: _accentLt.withOpacity(0.7)),
+              const SizedBox(width: 6),
+              Text(h, style: TextStyle(fontSize: 13, color: _accentLt, fontWeight: FontWeight.w600)),
+            ]),
+          )).toList()),
           const SizedBox(height: 8),
         ]),
       )),
@@ -536,16 +576,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Language ──────────────────────────────────────────────
   void _showLanguage() {
-    // ✅ English aur Urdu — dono actually apply hote hain (UI text change)
     final langs = [
-      {"code": "English", "label": "English",   "sub": "Default language"},
-      {"code": "Urdu",    "label": "اردو",       "sub": "قومی زبان"},
+      {"code": "English", "label": "English", "sub": "Default language"},
+      {"code": "Urdu",    "label": "اردو",    "sub": "قومی زبان"},
     ];
     showModalBottomSheet(
       context: context,
       backgroundColor: _cardBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => StatefulBuilder(builder: (ctx, setS) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -569,25 +607,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: sel ? _accent.withOpacity(0.12) : _fieldBg,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: sel ? _accent.withOpacity(0.55) : _borderCol,
-                    width: sel ? 2 : 1.5,
-                  ),
+                  border: Border.all(color: sel ? _accent.withOpacity(0.55) : _borderCol, width: sel ? 2 : 1.5),
                 ),
                 child: Row(children: [
-                  Container(
-                    width: 42, height: 42,
-                    decoration: BoxDecoration(
-                      color: sel ? _accent.withOpacity(0.20) : _fieldBg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: sel ? _accent.withOpacity(0.4) : _borderCol),
-                    ),
-                    child: Center(child: Text(
-                      lang["code"] == "Urdu" ? "اُ" : "En",
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
-                          color: sel ? _accentLt : _subColor),
-                    )),
-                  ),
+                  Container(width: 42, height: 42,
+                      decoration: BoxDecoration(
+                        color: sel ? _accent.withOpacity(0.20) : _fieldBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: sel ? _accent.withOpacity(0.4) : _borderCol),
+                      ),
+                      child: Center(child: Text(lang["code"] == "Urdu" ? "اُ" : "En",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                              color: sel ? _accentLt : _subColor)))),
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(lang["label"]!, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800,
@@ -609,23 +640,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: _cardBg,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           _dragHandle(),
           const SizedBox(height: 20),
-          Container(
-            width: 72, height: 72,
-            decoration: BoxDecoration(
-              color: _accent.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: _accent.withOpacity(0.55), width: 1.5),
-              boxShadow: [BoxShadow(color: _accent.withOpacity(0.30), blurRadius: 18, spreadRadius: -2)],
-            ),
-            child: const Icon(Icons.school_rounded, size: 36, color: _accentLt),
-          ),
+          Container(width: 72, height: 72,
+              decoration: BoxDecoration(color: _accent.withOpacity(0.15), borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: _accent.withOpacity(0.55), width: 1.5),
+                  boxShadow: [BoxShadow(color: _accent.withOpacity(0.30), blurRadius: 18, spreadRadius: -2)]),
+              child: const Icon(Icons.school_rounded, size: 36, color: _accentLt)),
           const SizedBox(height: 14),
           Text("UOG Smart Campus", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: _textColor)),
           const SizedBox(height: 4),
@@ -633,11 +658,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _fieldBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _borderCol, width: 1.5),
-            ),
+            decoration: BoxDecoration(color: _fieldBg, borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _borderCol, width: 1.5)),
             child: Text(
               "UOG Smart Campus is a navigation & information app for University of Gujrat students. Find buildings, explore campus map, get directions and stay updated with campus news.",
               textAlign: TextAlign.center,
@@ -666,15 +688,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text(_t["sign_out"]!, style: TextStyle(fontWeight: FontWeight.w900, color: _textColor)),
         content: Text("Are you sure you want to sign out?", style: TextStyle(color: _subColor, fontSize: 14)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Cancel", style: TextStyle(color: _subColor)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context),
+              child: Text("Cancel", style: TextStyle(color: _subColor))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE24B4A), foregroundColor: Colors.white,
-              elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE24B4A),
+                foregroundColor: Colors.white, elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginScreen()));
@@ -696,19 +715,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   InputDecoration _sheetDeco({required String hint, required IconData icon, Widget? suffix}) =>
       InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: _hintColor, fontSize: 13),
-        prefixIcon: Icon(icon, size: 19, color: _iconColor),
-        suffixIcon: suffix,
-        filled: true,
-        fillColor: _fieldBg,
+        hintText: hint, hintStyle: TextStyle(color: _hintColor, fontSize: 13),
+        prefixIcon: Icon(icon, size: 19, color: _iconColor), suffixIcon: suffix,
+        filled: true, fillColor: _fieldBg,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: _enabledBdr)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: _enabledBdr)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: _accent, width: 2)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _enabledBdr)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: _enabledBdr)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: _accent, width: 2)),
       );
 
   Widget _sheetLabel(String text) => Text(text,
@@ -732,55 +745,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_bgGrad1, _bgGrad2, _bgGrad3],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-        ),
+        gradient: LinearGradient(colors: [_bgGrad1, _bgGrad2, _bgGrad3],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 110),
           child: Column(children: [
             const SizedBox(height: 22),
-
-            // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(_t["profile"]!, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _textColor)),
-              ),
+              child: Align(alignment: Alignment.centerLeft,
+                  child: Text(_t["profile"]!, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _textColor))),
             ),
-
             const SizedBox(height: 28),
 
-            // Avatar — tap to change
             GestureDetector(
               onTap: _pickImage,
               child: Stack(children: [
                 Container(
                   width: 92, height: 92,
-                  decoration: BoxDecoration(
-                    color: _accent.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _accent.withOpacity(0.55), width: 2),
-                    boxShadow: [BoxShadow(color: _accent.withOpacity(0.30), blurRadius: 20, spreadRadius: -2)],
-                  ),
-                  child: ClipOval(
-                    child: _profileImage != null
-                        ? Image.file(_profileImage!, fit: BoxFit.cover, width: 92, height: 92)
-                        : const Icon(Icons.person_rounded, size: 46, color: Color(0xFFAB9FF8)),
-                  ),
+                  decoration: BoxDecoration(color: _accent.withOpacity(0.15), shape: BoxShape.circle,
+                      border: Border.all(color: _accent.withOpacity(0.55), width: 2),
+                      boxShadow: [BoxShadow(color: _accent.withOpacity(0.30), blurRadius: 20, spreadRadius: -2)]),
+                  child: ClipOval(child: _profileImage != null
+                      ? Image.file(_profileImage!, fit: BoxFit.cover, width: 92, height: 92)
+                      : const Icon(Icons.person_rounded, size: 46, color: Color(0xFFAB9FF8))),
                 ),
                 Positioned(bottom: 0, right: 0,
-                  child: Container(
-                    width: 28, height: 28,
-                    decoration: BoxDecoration(
-                      color: _accent, shape: BoxShape.circle,
-                      border: Border.all(color: _bgGrad1, width: 2),
-                    ),
-                    child: const Icon(Icons.camera_alt_rounded, size: 13, color: Colors.white),
-                  ),
+                  child: Container(width: 28, height: 28,
+                      decoration: BoxDecoration(color: _accent, shape: BoxShape.circle,
+                          border: Border.all(color: _bgGrad1, width: 2)),
+                      child: const Icon(Icons.camera_alt_rounded, size: 13, color: Colors.white)),
                 ),
               ]),
             ),
@@ -792,25 +788,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: _accent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _accent.withOpacity(0.40), width: 1),
-              ),
+              decoration: BoxDecoration(color: _accent.withOpacity(0.15), borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _accent.withOpacity(0.40), width: 1)),
               child: Text(_t["student"]!, style: const TextStyle(fontSize: 11, color: _accentLt, fontWeight: FontWeight.w700)),
             ),
 
             const SizedBox(height: 28),
-
-            // Stats
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(children: [
-                _stat("12", _t["buildings"]!),
+                _stat('$_buildingsVisited', _t["buildings"]!),
                 const SizedBox(width: 12),
-                _stat("3", _t["saved_routes"]!),
+                _stat('$_savedRoutes', _t["saved_routes"]!),
                 const SizedBox(width: 12),
-                _stat("5", _t["days_active"]!),
+                _stat('$_daysActive', _t["days_active"]!),
               ]),
             ),
 
@@ -820,45 +811,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-                // Account
                 _secLabel(_t["account"]!),
                 _tile(Icons.person_outline_rounded,     _t["edit_profile"]!,    _showEditProfile),
                 _tile(Icons.notifications_none_rounded, _t["notifications"]!,   _showNotifications,
                     trailing: _badge(_notificationsEnabled ? "ON" : "OFF", _notificationsEnabled)),
                 _tile(Icons.lock_outline_rounded,       _t["change_password"]!, _showChangePassword),
-
                 const SizedBox(height: 10),
 
-                // Preferences
                 _secLabel(_t["preferences"]!),
                 _tile(Icons.map_outlined,    _t["saved_locations"]!, _showSavedLocations),
                 _tile(Icons.history_rounded, _t["search_history"]!,  _showSearchHistory),
-
                 const SizedBox(height: 10),
 
-                // Settings
                 _secLabel(_t["settings"]!),
 
                 // Theme toggle
                 Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _borderCol, width: 1.5),
-                  ),
+                  decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _borderCol, width: 1.5)),
                   child: Row(children: [
-                    Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(
-                        color: (_isDark ? _accent : const Color(0xFFF39C12)).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: (_isDark ? _accent : const Color(0xFFF39C12)).withOpacity(0.35), width: 1),
-                      ),
-                      child: Icon(_isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                          size: 18, color: _isDark ? _accentLt : const Color(0xFFF39C12)),
-                    ),
+                    Container(width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: (_isDark ? _accent : const Color(0xFFF39C12)).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: (_isDark ? _accent : const Color(0xFFF39C12)).withOpacity(0.35), width: 1),
+                        ),
+                        child: Icon(_isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                            size: 18, color: _isDark ? _accentLt : const Color(0xFFF39C12))),
                     const SizedBox(width: 14),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(_isDark ? _t["dark_mode"]! : _t["light_mode"]!,
@@ -875,23 +856,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         decoration: BoxDecoration(
                           color: _isDark ? _accent : const Color(0xFFF39C12),
                           borderRadius: BorderRadius.circular(14),
-                          boxShadow: [BoxShadow(
-                            color: (_isDark ? _accent : const Color(0xFFF39C12)).withOpacity(0.4),
-                            blurRadius: 8, spreadRadius: -2,
-                          )],
+                          boxShadow: [BoxShadow(color: (_isDark ? _accent : const Color(0xFFF39C12)).withOpacity(0.4),
+                              blurRadius: 8, spreadRadius: -2)],
                         ),
                         child: Stack(children: [
                           AnimatedPositioned(
                             duration: const Duration(milliseconds: 300),
                             curve: Curves.easeInOut,
                             left: _isDark ? 26 : 2, top: 2,
-                            child: Container(
-                              width: 24, height: 24,
-                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle,
-                                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
-                              child: Icon(_isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                                  size: 14, color: _isDark ? _accent : const Color(0xFFF39C12)),
-                            ),
+                            child: Container(width: 24, height: 24,
+                                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle,
+                                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)]),
+                                child: Icon(_isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                                    size: 14, color: _isDark ? _accent : const Color(0xFFF39C12))),
                           ),
                         ]),
                       ),
@@ -902,7 +879,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _tile(Icons.language_rounded, _t["language"]!, _showLanguage,
                     trailing: Text(_selectedLanguage == "Urdu" ? "اردو" : "English",
                         style: TextStyle(fontSize: 13, color: _accentLt, fontWeight: FontWeight.w600))),
-
                 const SizedBox(height: 10),
 
                 _secLabel(_t["app"]!),
@@ -930,16 +906,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _stat(String value, String label) => Expanded(
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: _cardBg, borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _accent.withOpacity(0.20), width: 1.5),
-        boxShadow: [BoxShadow(color: _accent.withOpacity(0.10), blurRadius: 16, spreadRadius: -4)],
-      ),
+      decoration: BoxDecoration(color: _cardBg, borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _accent.withOpacity(0.20), width: 1.5),
+          boxShadow: [BoxShadow(color: _accent.withOpacity(0.10), blurRadius: 16, spreadRadius: -4)]),
       child: Column(children: [
+        const Text("", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _accentLt)),
         Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: _accentLt)),
         const SizedBox(height: 4),
-        Text(label, textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 10, color: _subColor, height: 1.4)),
+        Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: _subColor, height: 1.4)),
       ]),
     ),
   );
@@ -964,11 +938,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Row(children: [
             Icon(icon, size: 20, color: color ?? _iconColor),
             const SizedBox(width: 14),
-            Expanded(child: Text(label,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? _textColor))),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color ?? _textColor))),
             if (trailing != null) trailing,
-            if (trailing == null && color == null)
-              Icon(Icons.chevron_right_rounded, size: 18, color: _subColor),
+            if (trailing == null && color == null) Icon(Icons.chevron_right_rounded, size: 18, color: _subColor),
           ]),
         ),
       );

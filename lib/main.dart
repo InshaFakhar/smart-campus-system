@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'services/notification_service.dart';
 
 // ════════════════════════════════════════════════════════════
 //  ThemeProvider — Light/Dark mode state manage karta hai
@@ -28,6 +29,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService.instance.initialize();
 
   runApp(MyApp());
 }

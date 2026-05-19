@@ -8,6 +8,7 @@ import 'search_screen.dart';
 import 'profile_screen.dart';
 import 'directions_screen.dart';
 import '../main.dart';
+import '../services/notification_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   final _searchController = TextEditingController();
+  int _unreadCount = 0;  // 🔴 Badge count
 
   static const _accent   = Color(0xFF7C6FE8);
   static const _accentLt = Color(0xFFAB9FF8);
@@ -35,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen>
         vsync: this, duration: const Duration(milliseconds: 500));
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _animController.forward();
+    _loadUnreadCount();  // 🔔 Load badge on start
   }
 
   @override
@@ -48,6 +51,12 @@ class _HomeScreenState extends State<HomeScreen>
   void _onThemeChange() { if (mounted) setState(() {}); }
 
   bool get _isDark => themeProvider.isDark;
+
+  // ── Load unread count ──────────────────────────────────────
+  Future<void> _loadUnreadCount() async {
+    final count = await NotificationService.instance.unreadCount();
+    if (mounted) setState(() => _unreadCount = count);
+  }
 
   void _onTab(int i) {
     if (i == _currentIndex) return;
@@ -70,6 +79,26 @@ class _HomeScreenState extends State<HomeScreen>
   Color get _bgGrad1 => _isDark ? const Color(0xFF0A0818) : const Color(0xFFF0EFFF);
   Color get _bgGrad2 => _isDark ? const Color(0xFF1E1A4A) : const Color(0xFFE8E6FF);
   Color get _bgGrad3 => _isDark ? const Color(0xFF16142E) : const Color(0xFFEEEDFF);
+
+  // ── Notification Bell Tap ─────────────────────────────────
+  void _openNotifications() async {
+    // Mark all as read
+    await NotificationService.instance.markAllRead();
+    setState(() => _unreadCount = 0);
+
+    // Load history and show
+    final history = await NotificationService.instance.loadHistory();
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _isDark ? const Color(0xFF1C1836) : Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (_) => _NotificationSheet(history: history, isDark: _isDark),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +124,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         child: FadeTransition(opacity: _fadeAnim, child: _buildBody()),
       ),
-
       bottomNavigationBar: Container(
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 22),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
@@ -154,8 +182,151 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  Notification Bottom Sheet
+// ═══════════════════════════════════════════════════════════════
+class _NotificationSheet extends StatelessWidget {
+  final List<AppNotification> history;
+  final bool isDark;
+  const _NotificationSheet({required this.history, required this.isDark});
+
+  Color get _cardBg  => isDark ? const Color(0xFF13112A) : const Color(0xFFF5F4FF);
+  Color get _textCol => isDark ? Colors.white : const Color(0xFF1A1730);
+  Color get _subCol  => isDark ? Colors.white38 : Colors.black38;
+
+  IconData _iconFor(String type) {
+    switch (type) {
+      case 'campus_updates':      return Icons.campaign_rounded;
+      case 'schedule_reminders':  return Icons.event_rounded;
+      case 'map_alerts':          return Icons.map_rounded;
+      default:                    return Icons.notifications_rounded;
+    }
+  }
+
+  Color _colorFor(String type) {
+    switch (type) {
+      case 'campus_updates':      return const Color(0xFF6C5CE7);
+      case 'schedule_reminders':  return const Color(0xFF00B4D8);
+      case 'map_alerts':          return const Color(0xFF1ABC9C);
+      default:                    return const Color(0xFFF39C12);
+    }
+  }
+
+  String _timeAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1)  return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24)   return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scroll) => Column(children: [
+        // Handle + header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+          child: Column(children: [
+            Center(child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            )),
+            const SizedBox(height: 18),
+            Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C6FE8).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(color: const Color(0xFF7C6FE8).withOpacity(0.40), width: 1.5),
+                ),
+                child: const Icon(Icons.notifications_rounded, color: Color(0xFFAB9FF8), size: 22),
+              ),
+              const SizedBox(width: 14),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text("Notifications",
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: _textCol)),
+                Text("${history.length} total",
+                    style: TextStyle(fontSize: 12, color: _subCol)),
+              ]),
+            ]),
+            const SizedBox(height: 16),
+          ]),
+        ),
+
+        // List or empty state
+        Expanded(
+          child: history.isEmpty
+              ? Center(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.notifications_off_rounded,
+                  size: 56, color: isDark ? Colors.white12 : Colors.black12),
+              const SizedBox(height: 14),
+              Text("No notifications yet",
+                  style: TextStyle(fontSize: 15, color: _subCol, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              Text("Campus updates will appear here",
+                  style: TextStyle(fontSize: 12, color: _subCol)),
+            ],
+          ))
+              : ListView.separated(
+            controller: scroll,
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+            itemCount: history.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final n = history[i];
+              final col = _colorFor(n.type);
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: col.withOpacity(0.25), width: 1.5),
+                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                      color: col.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: col.withOpacity(0.35), width: 1),
+                    ),
+                    child: Icon(_iconFor(n.type), size: 20, color: col),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(n.title,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _textCol)),
+                    const SizedBox(height: 4),
+                    Text(n.body,
+                        style: TextStyle(fontSize: 12, color: _subCol, height: 1.4)),
+                    const SizedBox(height: 6),
+                    Text(_timeAgo(n.time),
+                        style: TextStyle(fontSize: 11, color: col.withOpacity(0.7),
+                            fontWeight: FontWeight.w600)),
+                  ])),
+                ]),
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 // ════════════════════════════════════════════════════════════
-//  Dashboard Tab — Theme aware
+//  Dashboard Tab — same as before + notification bell working
 // ════════════════════════════════════════════════════════════
 class _DashboardPage extends StatelessWidget {
   final TextEditingController search;
@@ -178,15 +349,14 @@ class _DashboardPage extends StatelessWidget {
   Color get _hintColor => isDark ? Colors.white.withOpacity(0.28) : Colors.black.withOpacity(0.30);
   Color get _iconColor => isDark ? Colors.white.withOpacity(0.55) : Colors.black.withOpacity(0.45);
 
-  // ── Exam Details Dialog ───────────────────────────────────
   void _showExamDetails(BuildContext context) {
     final exams = [
-      {"date": "May 10", "subject": "Mathematics",      "detail": "Hall A  •  9:00 AM",  "color": Color(0xFF6C5CE7)},
-      {"date": "May 12", "subject": "Computer Science", "detail": "Hall B  •  10:00 AM", "color": Color(0xFF1ABC9C)},
-      {"date": "May 14", "subject": "Physics",          "detail": "Hall C  •  9:00 AM",  "color": Color(0xFF00B4D8)},
-      {"date": "May 16", "subject": "English",          "detail": "Hall A  •  11:00 AM", "color": Color(0xFFF39C12)},
-      {"date": "May 18", "subject": "Pakistan Studies", "detail": "Hall D  •  9:00 AM",  "color": Color(0xFFE17055)},
-      {"date": "May 20", "subject": "Islamiat",         "detail": "Hall B  •  10:00 AM", "color": Color(0xFF27AE60)},
+      {"date": "May 10", "subject": "Mathematics",      "detail": "Hall A  •  9:00 AM",  "color": const Color(0xFF6C5CE7)},
+      {"date": "May 12", "subject": "Computer Science", "detail": "Hall B  •  10:00 AM", "color": const Color(0xFF1ABC9C)},
+      {"date": "May 14", "subject": "Physics",          "detail": "Hall C  •  9:00 AM",  "color": const Color(0xFF00B4D8)},
+      {"date": "May 16", "subject": "English",          "detail": "Hall A  •  11:00 AM", "color": const Color(0xFFF39C12)},
+      {"date": "May 18", "subject": "Pakistan Studies", "detail": "Hall D  •  9:00 AM",  "color": const Color(0xFFE17055)},
+      {"date": "May 20", "subject": "Islamiat",         "detail": "Hall B  •  10:00 AM", "color": const Color(0xFF27AE60)},
     ];
 
     showModalBottomSheet(
@@ -204,8 +374,6 @@ class _DashboardPage extends StatelessWidget {
           controller: scrollController,
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 40),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-            // Drag handle
             Center(child: Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
@@ -214,8 +382,6 @@ class _DashboardPage extends StatelessWidget {
               ),
             )),
             const SizedBox(height: 20),
-
-            // Title row
             Row(children: [
               Container(
                 width: 46, height: 46,
@@ -236,10 +402,7 @@ class _DashboardPage extends StatelessWidget {
                         color: isDark ? Colors.white38 : Colors.black38)),
               ]),
             ]),
-
             const SizedBox(height: 20),
-
-            // Warning box
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
@@ -247,24 +410,20 @@ class _DashboardPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFFE17055).withOpacity(0.30), width: 1.5),
               ),
-              child: Row(children: [
-                const Icon(Icons.warning_amber_rounded, color: Color(0xFFE17055), size: 20),
-                const SizedBox(width: 10),
+              child: const Row(children: [
+                Icon(Icons.warning_amber_rounded, color: Color(0xFFE17055), size: 20),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text("Carry your admit card & student ID to every exam",
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFE17055), fontWeight: FontWeight.w600)),
+                      style: TextStyle(fontSize: 12, color: Color(0xFFE17055), fontWeight: FontWeight.w600)),
                 ),
               ]),
             ),
-
             const SizedBox(height: 20),
-
             Text("SCHEDULE",
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2,
                     color: isDark ? Colors.white38 : Colors.black38)),
             const SizedBox(height: 12),
-
-            // Exam rows
             ...exams.map((exam) {
               final col = exam['color'] as Color;
               return Container(
@@ -276,7 +435,6 @@ class _DashboardPage extends StatelessWidget {
                   border: Border.all(color: col.withOpacity(0.25), width: 1.5),
                 ),
                 child: Row(children: [
-                  // Date badge
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
@@ -288,7 +446,6 @@ class _DashboardPage extends StatelessWidget {
                         style: TextStyle(fontSize: 11, color: col, fontWeight: FontWeight.w800)),
                   ),
                   const SizedBox(width: 12),
-                  // Subject + hall
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(exam['subject'] as String,
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
@@ -302,27 +459,6 @@ class _DashboardPage extends StatelessWidget {
                 ]),
               );
             }),
-
-            const SizedBox(height: 16),
-
-            // Footer note
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF7C6FE8).withOpacity(0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF7C6FE8).withOpacity(0.20), width: 1),
-              ),
-              child: Row(children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFFAB9FF8), size: 16),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text("For hall seat numbers, check the SSC notice board or UOG portal",
-                      style: TextStyle(fontSize: 12,
-                          color: isDark ? Colors.white54 : Colors.black54)),
-                ),
-              ]),
-            ),
           ]),
         ),
       ),
@@ -337,6 +473,10 @@ class _DashboardPage extends StatelessWidget {
     final isStudentId = RegExp(r'^\d').hasMatch(raw);
     final name  = isStudentId ? "Student" : raw[0].toUpperCase() + raw.substring(1);
 
+    // Get unread count from ancestor
+    final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+    final unread    = homeState?._unreadCount ?? 0;
+
     return SafeArea(
       child: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
@@ -345,7 +485,7 @@ class _DashboardPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            // ── Top Bar ───────────────────────────────
+            // ── Top Bar ───────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
               child: Row(children: [
@@ -367,14 +507,49 @@ class _DashboardPage extends StatelessWidget {
                       style: TextStyle(fontSize: 11, color: _subColor)),
                 ]),
                 const Spacer(),
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: _notifBg,
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: _notifBdr, width: 1),
-                  ),
-                  child: Icon(Icons.notifications_none_rounded, size: 21, color: _iconColor),
+
+                // ✅ Working Notification Bell with Badge
+                GestureDetector(
+                  onTap: () => homeState?._openNotifications(),
+                  child: Stack(children: [
+                    Container(
+                      width: 42, height: 42,
+                      decoration: BoxDecoration(
+                        color: _notifBg,
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: _notifBdr, width: 1),
+                      ),
+                      child: Icon(
+                        unread > 0
+                            ? Icons.notifications_rounded
+                            : Icons.notifications_none_rounded,
+                        size: 21,
+                        color: unread > 0 ? _accentLt : _iconColor,
+                      ),
+                    ),
+                    // 🔴 Red badge
+                    if (unread > 0)
+                      Positioned(
+                        top: 4, right: 4,
+                        child: Container(
+                          width: 16, height: 16,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE24B4A),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unread > 9 ? '9+' : '$unread',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ]),
                 ),
               ]),
             ),
@@ -402,101 +577,51 @@ class _DashboardPage extends StatelessWidget {
                     )
                   ],
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-
-                          // Top Tag
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text("📍 Smart Navigation",
+                              style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w700)),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text("Explore Campus\nNavigation",
+                            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: Colors.white, height: 1.2)),
+                        const SizedBox(height: 6),
+                        Text("Find blocks, rooms & directions easily",
+                            style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.75))),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: () => onTab(1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              "📍 Smart Navigation",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // Main Heading
-                          const Text(
-                            "Explore Campus\nNavigation",
-                            style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
                               color: Colors.white,
-                              height: 1.2,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 3))],
                             ),
+                            child: const Text("Open Map →",
+                                style: TextStyle(fontSize: 12, color: Color(0xFF6C5CE7), fontWeight: FontWeight.w800)),
                           ),
-
-                          const SizedBox(height: 6),
-
-                          // Subtitle
-                          Text(
-                            "Find blocks, rooms & directions easily",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.75),
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Button
-                          GestureDetector(
-                            onTap: () => onTab(1),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  )
-                                ],
-                              ),
-                              child: const Text(
-                                "Open Map →",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF6C5CE7),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-
-                    // Right Side Icon
-                    const Icon(
-                      Icons.map_rounded,
-                      size: 76,
-                      color: Colors.white24,
-                    ),
-                  ],
-                ),
+                  ),
+                  const Icon(Icons.map_rounded, size: 76, color: Colors.white24),
+                ]),
               ),
             ),
+
             const SizedBox(height: 24),
 
-            // ── Search Bar ────────────────────────────
+            // ── Search Bar ────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(
@@ -528,7 +653,7 @@ class _DashboardPage extends StatelessWidget {
 
             const SizedBox(height: 28),
 
-            // ── Quick Actions Header ──────────────────
+            // ── Quick Actions ─────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -541,10 +666,7 @@ class _DashboardPage extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // ── Grid Cards ────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: GridView.count(
@@ -555,48 +677,22 @@ class _DashboardPage extends StatelessWidget {
                 mainAxisSpacing: 14,
                 childAspectRatio: 0.98,
                 children: [
-                  _card(
-                    context: context,
-                    icon: Icons.map_rounded,
-                    title: "Campus Map",
-                    subtitle: "View your location",
-                    color: const Color(0xFF6C5CE7),
-                    onTap: () => onTab(1),
-                  ),
-                  _card(
-                    context: context,
-                    icon: Icons.near_me_rounded,
-                    title: "Directions",
-                    subtitle: "Navigate to building",
-                    color: const Color(0xFF00B4D8),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const DirectionsScreen()),
-                    ),
-                  ),
-                  _card(
-                    context: context,
-                    icon: Icons.apartment_rounded,
-                    title: "Buildings",
-                    subtitle: "Browse & search",
-                    color: const Color(0xFF9B59B6),
-                    onTap: () => onTab(2),
-                  ),
-                  _card(
-                    context: context,
-                    icon: Icons.person_rounded,
-                    title: "Profile",
-                    subtitle: "Account settings",
-                    color: const Color(0xFF1ABC9C),
-                    onTap: () => onTab(3),
-                  ),
+                  _card(context: context, icon: Icons.map_rounded, title: "Campus Map",
+                      subtitle: "View your location", color: const Color(0xFF6C5CE7), onTap: () => onTab(1)),
+                  _card(context: context, icon: Icons.near_me_rounded, title: "Directions",
+                      subtitle: "Navigate to building", color: const Color(0xFF00B4D8),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectionsScreen()))),
+                  _card(context: context, icon: Icons.apartment_rounded, title: "Buildings",
+                      subtitle: "Browse & search", color: const Color(0xFF9B59B6), onTap: () => onTab(2)),
+                  _card(context: context, icon: Icons.person_rounded, title: "Profile",
+                      subtitle: "Account settings", color: const Color(0xFF1ABC9C), onTap: () => onTab(3)),
                 ],
               ),
             ),
 
             const SizedBox(height: 28),
 
-            // ── Campus Info ───────────────────────────
+            // ── Campus Info ───────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text("Campus Info",
@@ -625,14 +721,8 @@ class _DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _card({
-    required BuildContext context,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  Widget _card({required BuildContext context, required IconData icon, required String title,
+    required String subtitle, required Color color, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -643,27 +733,23 @@ class _DashboardPage extends StatelessWidget {
           border: Border.all(color: color.withOpacity(0.35), width: 1.5),
           boxShadow: [BoxShadow(color: color.withOpacity(0.18), blurRadius: 20, spreadRadius: -4, offset: const Offset(0, 6))],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: color.withOpacity(0.45), width: 1.5),
-                boxShadow: [BoxShadow(color: color.withOpacity(0.28), blurRadius: 12, spreadRadius: -2)],
-              ),
-              child: Icon(icon, size: 24, color: color),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: color.withOpacity(0.45), width: 1.5),
+              boxShadow: [BoxShadow(color: color.withOpacity(0.28), blurRadius: 12, spreadRadius: -2)],
             ),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _textColor)),
-              const SizedBox(height: 3),
-              Text(subtitle, style: TextStyle(fontSize: 11, color: _subColor)),
-            ]),
-          ],
-        ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _textColor)),
+            const SizedBox(height: 3),
+            Text(subtitle, style: TextStyle(fontSize: 11, color: _subColor)),
+          ]),
+        ]),
       ),
     );
   }
@@ -678,11 +764,7 @@ class _DashboardPage extends StatelessWidget {
     child: Row(children: [
       Icon(icon, size: 14, color: const Color(0xFFAB9FF8)),
       const SizedBox(width: 8),
-      Expanded(
-        child: Text(label,
-            style: TextStyle(fontSize: 11, color: _subColor),
-            overflow: TextOverflow.ellipsis),
-      ),
+      Expanded(child: Text(label, style: TextStyle(fontSize: 11, color: _subColor), overflow: TextOverflow.ellipsis)),
     ]),
   );
 }

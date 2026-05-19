@@ -1,10 +1,12 @@
 // ============================================================
 // buildings_screen.dart — UOG Campus Buildings Directory
-// ✅ ALL COORDINATES VERIFIED VIA GOOGLE MAPS BY USER
+// Real visit tracking via StatsService (SharedPreferences)
+// Visited buildings show a checkmark badge on the tile
 // ============================================================
 
 import 'package:flutter/material.dart';
 import '../main.dart';
+import '../services/stats_service.dart';
 import 'map_screen.dart';
 import 'directions_screen.dart';
 
@@ -24,21 +26,25 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
   String _searchQuery      = '';
   String _selectedCategory = 'All';
 
-  bool  get _isDark     => themeProvider.isDark;
-  Color get _cardBg     => _isDark ? const Color(0xFF1C1836) : Colors.white;
-  Color get _fieldBg    => _isDark ? const Color(0xFF13112A) : Colors.white;
-  Color get _textColor  => _isDark ? Colors.white : const Color(0xFF1A1730);
-  Color get _subColor   => _isDark ? Colors.white.withOpacity(0.40) : const Color(0xFF3D3A5C).withOpacity(0.55);
-  Color get _hintColor  => _isDark ? Colors.white.withOpacity(0.28) : Colors.black.withOpacity(0.30);
-  Color get _iconBg     => _isDark ? const Color(0xFF13112A) : const Color(0xFFF0EFFF);
-  Color get _chipBg     => _isDark ? const Color(0xFF13112A) : const Color(0xFFF0EFFF);
-  Color get _chipBorder => _isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.10);
-  Color get _arrowColor => _isDark ? Colors.white.withOpacity(0.25) : Colors.black.withOpacity(0.25);
+  // Tracks which buildings the user has already visited
+  Set<String> _visitedBuildings = {};
+
+  bool  get _isDark    => themeProvider.isDark;
+  Color get _cardBg    => _isDark ? const Color(0xFF1C1836) : Colors.white;
+  Color get _fieldBg   => _isDark ? const Color(0xFF13112A) : Colors.white;
+  Color get _textColor => _isDark ? Colors.white : const Color(0xFF1A1730);
+  Color get _subColor  => _isDark ? Colors.white.withOpacity(0.40) : const Color(0xFF3D3A5C).withOpacity(0.55);
+  Color get _hintColor => _isDark ? Colors.white.withOpacity(0.28) : Colors.black.withOpacity(0.30);
+  Color get _iconBg    => _isDark ? const Color(0xFF13112A) : const Color(0xFFF0EFFF);
+  Color get _chipBg    => _isDark ? const Color(0xFF13112A) : const Color(0xFFF0EFFF);
+  Color get _chipBorder=> _isDark ? Colors.white.withOpacity(0.12) : Colors.black.withOpacity(0.10);
+  Color get _arrowColor=> _isDark ? Colors.white.withOpacity(0.25) : Colors.black.withOpacity(0.25);
 
   @override
   void initState() {
     super.initState();
     themeProvider.addListener(_onThemeChange);
+    _loadVisitedBuildings();   // Load previously visited buildings on screen open
   }
 
   @override
@@ -50,14 +56,16 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
 
   void _onThemeChange() { if (mounted) setState(() {}); }
 
-  // ✅ ALL COORDINATES VERIFIED VIA GOOGLE MAPS
-  // Campus zones:
-  //  NORTH  (32.641+): Arfa Karim, Al-Farabi, Ibn-e-Sina, Sada, Transport, M Cafe
-  //  MIDDLE (32.639–32.641): Al-Jazari, Al-Khawarizmi, Omar Al-Khayam, Jabir Bin Khayan, Main Cafe, P Cafe
-  //  SOUTH  (32.635–32.639): Admin, Library, Islamic Dept, Mosque, Mart, SSC, Hostels, Iqbal Hall, IHRM
-  final List<Map<String, dynamic>> _allBuildings = [
+  // Loads the set of visited building names from SharedPreferences
+  Future<void> _loadVisitedBuildings() async {
+    final visited = await StatsService.instance.getVisitedBuildings();
+    if (mounted) {
+      setState(() => _visitedBuildings = visited.toSet());
+    }
+  }
 
-    // ── NORTH CAMPUS ───────────────────────────────────────────
+  final List<Map<String, dynamic>> _allBuildings = [
+    // ── NORTH CAMPUS ──────────────────────────────────────────
     {
       "name": "Arfa Karim Block (B-Block)",
       "category": "Academic",
@@ -112,7 +120,6 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
       "desc": "M Cafe — snacks, tea, coffee — north-west campus",
       "status": "Open",
     },
-
     // ── MIDDLE CAMPUS ──────────────────────────────────────────
     {
       "name": "Al-Jazari Block",
@@ -168,7 +175,6 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
       "desc": "P Cafe — east campus, popular among students",
       "status": "Open",
     },
-
     // ── SOUTH CAMPUS ───────────────────────────────────────────
     {
       "name": "Islamic Studies Dept",
@@ -260,8 +266,6 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
       "desc": "Boys hostel — south-west campus",
       "status": "Open",
     },
-
-    // ── SERVICES / SHOPS ───────────────────────────────────────
     {
       "name": "Stationary Shop 1",
       "category": "Services",
@@ -298,6 +302,27 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
     }).toList();
   }
 
+  // Tracks building visit in SharedPreferences, then opens the map
+  Future<void> _onBuildingTap(Map<String, dynamic> b) async {
+    // Persist the visit to SharedPreferences
+    await StatsService.instance.trackBuildingVisit(b['name'] as String);
+
+    // Update local UI state so checkmark appears immediately
+    if (mounted) {
+      setState(() => _visitedBuildings.add(b['name'] as String));
+    }
+
+    if (!mounted) return;
+
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => MapScreen(
+        focusLat:  b['lat'] as double,
+        focusLng:  b['lng'] as double,
+        focusName: b['name'] as String,
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
@@ -308,7 +333,7 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            // ── Header ───────────────────────────────────────
+            // ── Header ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
               child: Row(children: [
@@ -318,33 +343,32 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
                     color: _iconBg,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _accent.withOpacity(0.35), width: 1.5),
-                    boxShadow: [BoxShadow(
-                        color: _accent.withOpacity(0.25), blurRadius: 12)],
+                    boxShadow: [BoxShadow(color: _accent.withOpacity(0.25), blurRadius: 12)],
                   ),
-                  child: const Icon(Icons.apartment_rounded,
-                      color: _accentLt, size: 20),
+                  child: const Icon(Icons.apartment_rounded, color: _accentLt, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Text("Buildings",
-                    style: TextStyle(fontSize: 20,
-                        fontWeight: FontWeight.w800, color: _textColor)),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _textColor)),
                 const Spacer(),
-                Text("${filtered.length} found",
-                    style: TextStyle(fontSize: 12, color: _subColor)),
+                // Shows how many buildings the user has visited out of total
+                Text(
+                  "${_visitedBuildings.length}/${_allBuildings.length} visited",
+                  style: TextStyle(fontSize: 12, color: _subColor),
+                ),
               ]),
             ),
 
             const SizedBox(height: 16),
 
-            // ── Search Bar ───────────────────────────────────
+            // ── Search Bar ────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(
                 decoration: BoxDecoration(
                   color: _fieldBg,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: _accent.withOpacity(0.28), width: 1.5),
+                  border: Border.all(color: _accent.withOpacity(0.28), width: 1.5),
                   boxShadow: [BoxShadow(
                       color: _accent.withOpacity(0.10),
                       blurRadius: 12, offset: const Offset(0, 4))],
@@ -364,13 +388,10 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
                         _searchQuery = '';
                         _searchController.clear();
                       }),
-                      child: Icon(Icons.close_rounded,
-                          size: 18, color: _subColor),
-                    )
-                        : null,
+                      child: Icon(Icons.close_rounded, size: 18, color: _subColor),
+                    ) : null,
                     border: InputBorder.none,
-                    contentPadding:
-                    const EdgeInsets.symmetric(vertical: 14),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
@@ -390,27 +411,20 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
                   final cat = _categories[i];
                   final sel = _selectedCategory == cat;
                   return GestureDetector(
-                    onTap: () =>
-                        setState(() => _selectedCategory = cat),
+                    onTap: () => setState(() => _selectedCategory = cat),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       decoration: BoxDecoration(
                         color: sel ? _accent : _chipBg,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: sel ? _accent : _chipBorder),
+                        border: Border.all(color: sel ? _accent : _chipBorder),
                         boxShadow: sel
-                            ? [BoxShadow(
-                            color: _accent.withOpacity(0.30),
-                            blurRadius: 8, spreadRadius: -2)]
+                            ? [BoxShadow(color: _accent.withOpacity(0.30), blurRadius: 8, spreadRadius: -2)]
                             : null,
                       ),
                       child: Text(cat,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
                               color: sel ? Colors.white : _subColor)),
                     ),
                   );
@@ -426,21 +440,17 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
                   ? Center(child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.search_off_rounded,
-                      size: 48, color: _subColor),
+                  Icon(Icons.search_off_rounded, size: 48, color: _subColor),
                   const SizedBox(height: 12),
                   Text("No buildings found",
-                      style: TextStyle(
-                          color: _subColor, fontSize: 14)),
+                      style: TextStyle(color: _subColor, fontSize: 14)),
                 ],
               ))
                   : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 110),
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) =>
-                const SizedBox(height: 10),
-                itemBuilder: (_, i) =>
-                    _buildingTile(filtered[i]),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _buildingTile(filtered[i]),
               ),
             ),
           ],
@@ -450,8 +460,9 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
   }
 
   Widget _buildingTile(Map<String, dynamic> b) {
-    final color  = b['color'] as Color;
-    final status = b['status'] as String;
+    final color      = b['color'] as Color;
+    final status     = b['status'] as String;
+    final wasVisited = _visitedBuildings.contains(b['name'] as String);
 
     Color statusColor;
     if (status == "Open" || status == "Available") {
@@ -463,109 +474,121 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
     }
 
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => MapScreen(
-          focusLat: b['lat'],
-          focusLng: b['lng'],
-          focusName: b['name'],
-        ),
-      )),
+      onTap: () => _onBuildingTap(b),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: _cardBg,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withOpacity(0.28), width: 1.5),
+          border: Border.all(
+            // Visited buildings get a slightly brighter border to distinguish them
+            color: wasVisited
+                ? color.withOpacity(0.55)
+                : color.withOpacity(0.28),
+            width: 1.5,
+          ),
           boxShadow: [BoxShadow(
               color: color.withOpacity(0.10),
               blurRadius: 16, offset: const Offset(0, 4))],
         ),
         child: Row(children: [
+
+          // Building icon container
           Container(
             width: 48, height: 48,
             decoration: BoxDecoration(
               color: color.withOpacity(0.15),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: color.withOpacity(0.40), width: 1.5),
-              boxShadow: [BoxShadow(
-                  color: color.withOpacity(0.20),
-                  blurRadius: 8, spreadRadius: -2)],
+              border: Border.all(color: color.withOpacity(0.40), width: 1.5),
+              boxShadow: [BoxShadow(color: color.withOpacity(0.20), blurRadius: 8, spreadRadius: -2)],
             ),
             child: Icon(b['icon'] as IconData, color: color, size: 22),
           ),
+
           const SizedBox(width: 14),
+
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(b['name'],
-                  style: TextStyle(fontSize: 14,
-                      fontWeight: FontWeight.w700, color: _textColor)),
+              Row(children: [
+                Expanded(
+                  child: Text(b['name'] as String,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _textColor)),
+                ),
+                // Green checkmark badge shown only for visited buildings
+                if (wasVisited)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2ECC71).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF2ECC71).withOpacity(0.40), width: 1),
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.check_circle_rounded, size: 10, color: Color(0xFF2ECC71)),
+                      SizedBox(width: 3),
+                      Text("Visited", style: TextStyle(
+                          fontSize: 9, color: Color(0xFF2ECC71), fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+              ]),
               const SizedBox(height: 3),
-              Text(b['desc'],
+              Text(b['desc'] as String,
                   style: TextStyle(fontSize: 11, color: _subColor),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 7),
               Row(children: [
+                // Category badge
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(b['category'],
-                      style: TextStyle(fontSize: 10,
-                          color: color, fontWeight: FontWeight.w700)),
+                  child: Text(b['category'] as String,
+                      style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(width: 6),
+                // Status badge
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(status,
-                      style: TextStyle(fontSize: 10,
-                          color: statusColor,
-                          fontWeight: FontWeight.w700)),
+                      style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(width: 6),
+                // Directions button
                 GestureDetector(
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(
-                        builder: (_) => DirectionsScreen(
-                          destinationName: b['name'],
-                          destinationLat: b['lat'],
-                          destinationLng: b['lng'],
-                        ),
-                      )),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => DirectionsScreen(
+                      destinationName: b['name'] as String,
+                      destinationLat:  b['lat']  as double,
+                      destinationLng:  b['lng']  as double,
+                    ),
+                  )),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: const Color(0xFF00B4D8).withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Row(children: [
-                      Icon(Icons.near_me_rounded,
-                          size: 10, color: Color(0xFF00B4D8)),
+                      Icon(Icons.near_me_rounded, size: 10, color: Color(0xFF00B4D8)),
                       SizedBox(width: 3),
                       Text("Directions",
-                          style: TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFF00B4D8),
-                              fontWeight: FontWeight.w700)),
+                          style: TextStyle(fontSize: 10, color: Color(0xFF00B4D8), fontWeight: FontWeight.w700)),
                     ]),
                   ),
                 ),
               ]),
             ],
           )),
+
           const SizedBox(width: 8),
-          Icon(Icons.arrow_forward_ios_rounded,
-              size: 14, color: _arrowColor),
+          Icon(Icons.arrow_forward_ios_rounded, size: 14, color: _arrowColor),
         ]),
       ),
     );

@@ -129,53 +129,69 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
               opacity: _fadeAnim,
               child: SlideTransition(
                 position: _slideAnim,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 26),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: IntrinsicHeight(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 24),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 76, height: 76,
+                                  decoration: BoxDecoration(
+                                    color: _accent.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: _accent.withOpacity(0.55), width: 1.5),
+                                    boxShadow: [BoxShadow(color: _accent.withOpacity(0.35), blurRadius: 24, spreadRadius: 2)],
+                                  ),
+                                  child: Icon(_emailSent ? Icons.mark_email_read_rounded : Icons.lock_reset_rounded,
+                                      size: 38, color: _accentLt),
+                                ),
 
-                    Container(
-                      width: 76, height: 76,
-                      decoration: BoxDecoration(
-                        color: _accent.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: _accent.withOpacity(0.55), width: 1.5),
-                        boxShadow: [BoxShadow(color: _accent.withOpacity(0.35), blurRadius: 24, spreadRadius: 2)],
+                                const SizedBox(height: 20),
+
+                                Text(
+                                  _emailSent ? "Check Your Inbox!" : "Forgot Password?",
+                                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _textColor, letterSpacing: -0.8),
+                                ),
+
+                                const SizedBox(height: 8),
+
+                                Text(
+                                  _emailSent
+                                      ? "Reset link sent to your UOG email.\nClick the link to set new password."
+                                      : "Enter your UOG registered email.\nWe'll send a password reset link.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 13, color: _subColor),
+                                ),
+
+                                const SizedBox(height: 36),
+
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: _cardBg,
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(color: _cardBorder, width: 1.5),
+                                    boxShadow: [BoxShadow(color: _accent.withOpacity(0.12), blurRadius: 30, spreadRadius: -4, offset: const Offset(0, 10))],
+                                  ),
+                                  child: _emailSent ? _successView() : _formView(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Icon(_emailSent ? Icons.mark_email_read_rounded : Icons.lock_reset_rounded,
-                          size: 38, color: _accentLt),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    Text(
-                      _emailSent ? "Check Your Inbox!" : "Forgot Password?",
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _textColor, letterSpacing: -0.8),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Text(
-                      _emailSent
-                          ? "Reset link sent to your UOG email.\nClick the link to set new password."
-                          : "Enter your UOG registered email.\nWe'll send a password reset link.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: _subColor),
-                    ),
-
-                    const SizedBox(height: 36),
-
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: _cardBg,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: _cardBorder, width: 1.5),
-                        boxShadow: [BoxShadow(color: _accent.withOpacity(0.12), blurRadius: 30, spreadRadius: -4, offset: const Offset(0, 10))],
-                      ),
-                      child: _emailSent ? _successView() : _formView(),
-                    ),
-                  ]),
+                    );
+                  },
                 ),
               ),
             ),
