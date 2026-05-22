@@ -335,17 +335,7 @@ class _DirectionsScreenState extends State<DirectionsScreen>
         "Stationary Shop 1 — printing, photocopy, and books available ✅",
       ]
     },
-    {
-      "name": "Stationary Shop 2",
-      "lat": 32.64100, "lng": 74.16700,
-      "icon": Icons.edit_note_rounded,
-      "color": Color(0xFF1ABC9C),
-      "steps": [
-        "Head towards Al-Jazari Block",
-        "Located in the middle campus area, north side",
-        "Stationary Shop 2 — near academic blocks ✅",
-      ]
-    },
+
   ];
 
   @override

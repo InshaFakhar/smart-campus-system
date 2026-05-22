@@ -148,12 +148,7 @@ class _MapScreenState extends State<MapScreen> {
       "icon": Icons.edit_rounded,
       "color": Color(0xFF1ABC9C),
     },
-    {
-      "name": "Stationary Shop 2",
-      "lat": 32.64100, "lng": 74.16700,
-      "icon": Icons.edit_note_rounded,
-      "color": Color(0xFF1ABC9C),
-    },
+
 
     // ── Campus ───────────────────────────────────────────
     {

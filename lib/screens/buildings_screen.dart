@@ -275,15 +275,10 @@ class _BuildingsScreenState extends State<BuildingsScreen> {
       "desc": "Stationery, print, photocopy — near Library/Admin area",
       "status": "Open",
     },
-    {
-      "name": "Stationary Shop 2",
-      "category": "Services",
-      "icon": Icons.edit_note_rounded,
-      "color": Color(0xFF1ABC9C),
-      "lat": 32.64100, "lng": 74.16700,
-      "desc": "Stationery, books, binding — near academic blocks",
-      "status": "Open",
-    },
+
+
+
+
   ];
 
   final List<String> _categories = [

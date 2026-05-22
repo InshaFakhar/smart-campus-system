@@ -4,7 +4,7 @@ import 'package:animated_text_kit/animated_text_kit.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  SplashScreen({super.key});
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -26,18 +26,31 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1200),
     );
 
-    _fadeAnim = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    _fadeAnim = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    );
+
+    _scaleAnim = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+      ),
     );
 
     _controller.forward();
 
-    Timer(const Duration(seconds: 4), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => LoginScreen()),
-      );
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => LoginScreen(),
+          ),
+        );
+      }
     });
   }
 
@@ -47,13 +60,46 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
+  Widget buildCircle(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withOpacity(0.05),
+          width: 1,
+        ),
+      ),
+    );
+  }
+
+  Widget buildDot(bool active) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: active ? 18 : 7,
+      height: 7,
+      decoration: BoxDecoration(
+        color: active
+            ? const Color(0xFF7C6FE8)
+            : Colors.white24,
+        borderRadius: BorderRadius.circular(10),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
+            colors: [
+              Color(0xFF0F0C29),
+              Color(0xFF302B63),
+              Color(0xFF24243E),
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -61,24 +107,18 @@ class _SplashScreenState extends State<SplashScreen>
         child: Stack(
           children: [
 
-            /// Background decorative circles
             Positioned(
               top: -80,
               left: -80,
-              child: _buildCircle(300),
-            ),
-            Positioned(
-              bottom: 60,
-              right: -60,
-              child: _buildCircle(200),
-            ),
-            Positioned(
-              bottom: 120,
-              right: 10,
-              child: _buildCircle(120),
+              child: buildCircle(300),
             ),
 
-            /// Main content
+            Positioned(
+              bottom: 50,
+              right: -50,
+              child: buildCircle(220),
+            ),
+
             SafeArea(
               child: FadeTransition(
                 opacity: _fadeAnim,
@@ -90,71 +130,64 @@ class _SplashScreenState extends State<SplashScreen>
 
                       const Spacer(),
 
-                      /// Logo box
                       Container(
-                        width: 90,
-                        height: 90,
+                        width: 95,
+                        height: 95,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF7C6FE8).withOpacity(0.15),
+                          color: Colors.white.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(28),
                           border: Border.all(
-                            color: const Color(0xFF7C6FE8).withOpacity(0.4),
-                            width: 1.5,
+                            color: Colors.white24,
                           ),
                         ),
                         child: const Icon(
                           Icons.school_rounded,
-                          size: 44,
-                          color: Color(0xFF9B8EF8),
+                          color: Color(0xFFB3A7FF),
+                          size: 48,
                         ),
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 30),
 
-                      /// App name animated
                       AnimatedTextKit(
+                        totalRepeatCount: 1,
                         animatedTexts: [
                           TyperAnimatedText(
                             'Smart Campus',
-                            textStyle: const TextStyle(
-                              fontSize: 30,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                            ),
                             speed: const Duration(milliseconds: 80),
+                            textStyle: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
-                        totalRepeatCount: 1,
                       ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
 
                       const Text(
                         "Navigate your campus easily",
                         style: TextStyle(
-                          color: Color(0x80FFFFFF),
+                          color: Colors.white70,
                           fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: 0.3,
                         ),
                       ),
 
                       const Spacer(),
 
-                      /// Dot indicators
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _buildDot(active: true),
+                          buildDot(true),
                           const SizedBox(width: 6),
-                          _buildDot(active: false),
+                          buildDot(false),
                           const SizedBox(width: 6),
-                          _buildDot(active: false),
+                          buildDot(false),
                         ],
                       ),
 
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 40),
                     ],
                   ),
                 ),
@@ -162,34 +195,6 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCircle(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withOpacity(0.04),
-          width: 1,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDot({required bool active}) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: active ? 20 : 7,
-      height: 7,
-      decoration: BoxDecoration(
-        color: active
-            ? const Color(0xFF7C6FE8)
-            : Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(4),
       ),
     );
   }
